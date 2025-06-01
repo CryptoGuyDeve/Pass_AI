@@ -1,29 +1,87 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { Stack, router } from 'expo-router';
+import { useEffect } from 'react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { storage } from './utils/storage';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+function RootLayout() {
+  const { session } = useAuth();
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Check if user is logged in
+        if (session) {
+          router.replace('/password-manager');
+          return;
+        }
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
-  }
+        // If not logged in, check if onboarding is complete
+        const isOnboardingComplete = await storage.isOnboardingComplete();
+        if (!isOnboardingComplete) {
+          router.replace('/onboarding');
+        } else {
+          router.replace('/sign-in');
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        router.replace('/sign-in');
+      }
+    };
+
+    checkAuth();
+  }, [session]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#000' },
+      }}
+    >
+      <Stack.Screen
+        name="onboarding"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="sign-in"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="password-manager"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="add-credential"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="credential-details"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+    </Stack>
+  );
+}
+
+export default function Layout() {
+  return (
+    <AuthProvider>
+      <RootLayout />
+    </AuthProvider>
   );
 }
