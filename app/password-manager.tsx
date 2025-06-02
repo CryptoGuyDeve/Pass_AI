@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, FlatList, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from './contexts/AuthContext';
 import { Credential } from './utils/credentialTypes';
 import { storage } from './utils/storage';
@@ -10,6 +10,9 @@ import { storage } from './utils/storage';
 export default function PasswordManager() {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Credential[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const { session, signOut } = useAuth();
 
   useEffect(() => {
@@ -39,6 +42,39 @@ export default function PasswordManager() {
     }
   };
 
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const filtered = credentials.filter(cred => 
+        cred.title.toLowerCase().includes(query.toLowerCase()) ||
+        (cred.type === 'password' && (
+          (cred.username?.toLowerCase().includes(query.toLowerCase())) ||
+          (cred.email?.toLowerCase().includes(query.toLowerCase())) ||
+          (cred.website?.toLowerCase().includes(query.toLowerCase()))
+        )) ||
+        (cred.type === 'creditCard' && (
+          cred.cardholderName.toLowerCase().includes(query.toLowerCase())
+        )) ||
+        (cred.type === 'wifi' && (
+          cred.networkName.toLowerCase().includes(query.toLowerCase())
+        ))
+      );
+      setSearchResults(filtered);
+    } catch (error) {
+      console.error('Error searching credentials:', error);
+      Alert.alert('Error', 'Failed to search credentials');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleAddCredential = () => {
     router.push('/add-credential');
   };
@@ -52,6 +88,37 @@ export default function PasswordManager() {
       Alert.alert('Error', 'Failed to sign out');
     }
   };
+
+  const renderSearchBar = () => (
+    <View style={styles.searchContainer}>
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search credentials..."
+          placeholderTextColor="#666"
+          value={searchQuery}
+          onChangeText={handleSearch}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {searchQuery ? (
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={() => {
+              setSearchQuery('');
+              setSearchResults([]);
+            }}
+          >
+            <Ionicons name="close-circle" size={20} color="#666" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {isSearching && (
+        <Text style={styles.searchingText}>Searching...</Text>
+      )}
+    </View>
+  );
 
   const renderCredential = ({ item }: { item: Credential }) => {
     const getSubtitle = () => {
@@ -118,31 +185,12 @@ export default function PasswordManager() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>PassAI</Text>
-          <TouchableOpacity 
-            style={styles.menuButton}
-            onPress={() => {
-              Alert.alert(
-                'Menu',
-                'Select an option',
-                [
-                  {
-                    text: 'Search',
-                    onPress: () => router.push('/search'),
-                  },
-                  {
-                    text: 'Cancel',
-                    style: 'cancel',
-                  },
-                ]
-              );
-            }}
-          >
-            <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
-          </TouchableOpacity>
         </View>
 
+        {renderSearchBar()}
+
         <FlatList
-          data={credentials}
+          data={searchQuery ? searchResults : credentials}
           renderItem={renderCredential}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
@@ -195,8 +243,35 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  menuButton: {
-    padding: 8,
+  searchContainer: {
+    padding: 16,
+    backgroundColor: '#000',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 16,
+    height: '100%',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  searchingText: {
+    color: '#666',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
   },
   loadingText: {
     color: '#fff',
