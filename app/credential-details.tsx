@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ScreenCapture from 'expo-screen-capture';
 import React, { useEffect, useState } from 'react';
-import { Alert, Clipboard, Platform, SafeAreaView, ScrollView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Clipboard, Dimensions, Image, Linking, Modal, Platform, SafeAreaView, ScrollView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from './contexts/AuthContext';
-import { Credential } from './utils/credentialTypes';
+import { Credential, CreditCardCredential, ImageCredential, LinkCredential, NoteCredential, PasswordCredential, WiFiCredential } from './utils/credentialTypes';
 import { storage } from './utils/storage';
 
 export default function CredentialDetails() {
@@ -12,6 +14,9 @@ export default function CredentialDetails() {
   const [credential, setCredential] = useState<Credential | null>(null);
   const [loading, setLoading] = useState(true);
   const { session } = useAuth();
+  const [imageError, setImageError] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Visibility toggles for sensitive fields
   const [showPassword, setShowPassword] = useState(false);
@@ -40,6 +45,9 @@ export default function CredentialDetails() {
     try {
       const data = await storage.getCredential(id as string);
       console.log('Loaded credential in details:', data);
+      if (data.type === 'image') {
+        console.log('Image URL:', data.imageUrl);
+      }
       setCredential(data);
     } catch (error) {
       console.error('Error loading credential:', error);
@@ -124,8 +132,35 @@ export default function CredentialDetails() {
     );
   };
 
-  const renderPasswordDetails = (credential: Credential) => {
-    if (credential.type !== 'password') return null;
+  const handleDownload = async (url: string) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant permission to save images');
+        return;
+      }
+
+      const filename = url.split('/').pop() || 'image.jpg';
+      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+
+      // Download the file
+      const downloadResult = await FileSystem.downloadAsync(url, fileUri);
+      
+      if (downloadResult.status === 200) {
+        // Save to media library
+        const asset = await MediaLibrary.createAssetAsync(downloadResult.uri);
+        await MediaLibrary.createAlbumAsync('PassAI', asset, false);
+        Alert.alert('Success', 'Image saved to gallery');
+      } else {
+        throw new Error('Download failed');
+      }
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      Alert.alert('Error', 'Failed to download image');
+    }
+  };
+
+  const renderPasswordDetails = (credential: PasswordCredential) => {
     return (
       <>
         {credential.username && (
@@ -135,7 +170,7 @@ export default function CredentialDetails() {
               <Text style={styles.value}>{credential.username}</Text>
               <TouchableOpacity
                 style={styles.copyButton}
-                onPress={() => handleCopy(credential.username, 'Username')}
+                onPress={() => handleCopy(credential.username || '', 'Username')}
               >
                 <Ionicons name="copy-outline" size={20} color="#fff" />
               </TouchableOpacity>
@@ -149,7 +184,7 @@ export default function CredentialDetails() {
               <Text style={styles.value}>{credential.email}</Text>
               <TouchableOpacity
                 style={styles.copyButton}
-                onPress={() => handleCopy(credential.email, 'Email')}
+                onPress={() => handleCopy(credential.email || '', 'Email')}
               >
                 <Ionicons name="copy-outline" size={20} color="#fff" />
               </TouchableOpacity>
@@ -181,7 +216,7 @@ export default function CredentialDetails() {
               <Text style={styles.value}>{credential.website}</Text>
               <TouchableOpacity
                 style={styles.copyButton}
-                onPress={() => handleCopy(credential.website, 'Website')}
+                onPress={() => handleCopy(credential.website || '', 'Website')}
               >
                 <Ionicons name="copy-outline" size={20} color="#fff" />
               </TouchableOpacity>
@@ -192,9 +227,7 @@ export default function CredentialDetails() {
     );
   };
 
-  const renderCreditCardDetails = (credential: Credential) => {
-    if (credential.type !== 'creditCard') return null;
-    console.log('Rendering credit card details:', credential);
+  const renderCreditCardDetails = (credential: CreditCardCredential) => {
     return (
       <>
         <View style={styles.field}>
@@ -220,7 +253,6 @@ export default function CredentialDetails() {
         <View style={styles.field}>
           <Text style={styles.label}>Cardholder Name</Text>
           <View style={styles.valueContainer}>
-            {console.log('Cardholder name:', credential.cardholderName)}
             <Text style={styles.value}>{credential.cardholderName}</Text>
             <TouchableOpacity
               style={styles.copyButton}
@@ -264,16 +296,13 @@ export default function CredentialDetails() {
     );
   };
 
-  const renderNoteDetails = (credential: Credential) => {
-    if (credential.type !== 'note') return null;
-    console.log('Rendering note details:', credential);
+  const renderNoteDetails = (credential: NoteCredential) => {
     return (
       <View style={styles.field}>
         <Text style={styles.label}>Content</Text>
         <View style={[styles.valueContainer, styles.noteContainer]}>
           <ScrollView style={styles.noteScrollView}>
             <Text style={[styles.value, styles.noteContent, { color: '#fff' }]}>
-              {console.log('Note content:', credential.content)}
               {credential.content}
             </Text>
           </ScrollView>
@@ -288,15 +317,12 @@ export default function CredentialDetails() {
     );
   };
 
-  const renderWifiDetails = (credential: Credential) => {
-    if (credential.type !== 'wifi') return null;
-    console.log('Rendering WiFi details:', credential);
+  const renderWiFiDetails = (credential: WiFiCredential) => {
     return (
       <>
         <View style={styles.field}>
           <Text style={styles.label}>Network Name</Text>
           <View style={styles.valueContainer}>
-            {console.log('Network name:', credential.networkName)}
             <Text style={styles.value}>{credential.networkName}</Text>
             <TouchableOpacity
               style={styles.copyButton}
@@ -327,7 +353,6 @@ export default function CredentialDetails() {
         <View style={styles.field}>
           <Text style={styles.label}>Security Type</Text>
           <View style={styles.valueContainer}>
-            {console.log('Security type:', credential.securityType)}
             <Text style={styles.value}>{credential.securityType}</Text>
             <TouchableOpacity
               style={styles.copyButton}
@@ -341,26 +366,154 @@ export default function CredentialDetails() {
     );
   };
 
-  const renderDetails = () => {
+  const renderLinkDetails = (credential: LinkCredential) => {
+    if (!credential.links) return null;
+    return (
+      <>
+        {credential.links.map((link, index) => (
+          <View key={index} style={styles.field}>
+            <Text style={styles.label}>{link.name || `Link ${index + 1}`}</Text>
+            <View style={styles.valueContainer}>
+              <Text style={styles.value}>{link.url}</Text>
+              <TouchableOpacity
+                style={styles.copyButton}
+                onPress={() => handleCopy(link.url, 'URL')}
+              >
+                <Ionicons name="copy-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.copyButton}
+                onPress={() => Linking.openURL(link.url)}
+              >
+                <Ionicons name="open-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+      </>
+    );
+  };
+
+  const renderImageDetails = (credential: ImageCredential) => {
+    return (
+      <>
+        <ScrollView style={styles.container}>
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="image" size={32} color="#fff" />
+            </View>
+            <Text style={styles.title}>{credential.title}</Text>
+          </View>
+
+          <View style={styles.content}>
+            <View style={styles.imageContainer}>
+              {isImageLoading && (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Loading image...</Text>
+                </View>
+              )}
+              {imageError ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={32} color="#ff4444" />
+                  <Text style={styles.errorText}>Failed to load image</Text>
+                  <TouchableOpacity 
+                    style={styles.retryButton}
+                    onPress={() => {
+                      setImageError(false);
+                      setIsImageLoading(true);
+                    }}
+                  >
+                    <Text style={styles.retryText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  onPress={() => setIsFullScreen(true)}
+                  activeOpacity={0.9}
+                >
+                  <Image
+                    source={{ 
+                      uri: credential.imageUrl,
+                      cache: 'reload'
+                    }}
+                    style={styles.image}
+                    resizeMode="contain"
+                    onLoadStart={() => setIsImageLoading(true)}
+                    onLoadEnd={() => setIsImageLoading(false)}
+                    onError={(error) => {
+                      console.error('Image loading error:', error.nativeEvent.error);
+                      setImageError(true);
+                      setIsImageLoading(false);
+                    }}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.imageActions}>
+              <TouchableOpacity 
+                style={styles.downloadButton}
+                onPress={() => handleDownload(credential.imageUrl)}
+              >
+                <Ionicons name="download-outline" size={24} color="#fff" />
+                <Text style={styles.buttonText}>Download</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {credential.description && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Description</Text>
+                <View style={styles.valueContainer}>
+                  <Text style={styles.value}>{credential.description}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <Modal
+          visible={isFullScreen}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setIsFullScreen(false)}
+        >
+          <View style={styles.fullScreenContainer}>
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setIsFullScreen(false)}
+            >
+              <Ionicons name="close" size={32} color="#fff" />
+            </TouchableOpacity>
+            <Image
+              source={{ uri: credential.imageUrl }}
+              style={styles.fullScreenImage}
+              resizeMode="contain"
+            />
+          </View>
+        </Modal>
+      </>
+    );
+  };
+
+  const renderCredentialDetails = () => {
     if (!credential) return null;
 
-    return (
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name={getCredentialIcon(credential.type)} size={32} color="#fff" />
-          </View>
-          <Text style={styles.title}>{credential.title}</Text>
-        </View>
-
-        <View style={styles.content}>
-          {renderPasswordDetails(credential)}
-          {renderCreditCardDetails(credential)}
-          {renderNoteDetails(credential)}
-          {renderWifiDetails(credential)}
-        </View>
-      </ScrollView>
-    );
+    switch (credential.type) {
+      case 'password':
+        return renderPasswordDetails(credential);
+      case 'creditCard':
+        return renderCreditCardDetails(credential);
+      case 'note':
+        return renderNoteDetails(credential);
+      case 'wifi':
+        return renderWiFiDetails(credential);
+      case 'link':
+        return renderLinkDetails(credential);
+      case 'image':
+        return renderImageDetails(credential);
+      default:
+        return null;
+    }
   };
 
   const getCredentialIcon = (type: string) => {
@@ -405,7 +558,7 @@ export default function CredentialDetails() {
             </TouchableOpacity>
           </View>
         </View>
-        {renderDetails()}
+        {renderCredentialDetails()}
       </View>
     </SafeAreaView>
   );
@@ -515,5 +668,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 20,
+  },
+  imageContainer: {
+    width: '100%',
+    height: 300,
+    marginBottom: 24,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#111',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#111',
+  },
+  loadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#111',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#111',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#ff4444',
+    fontSize: 16,
+    marginTop: 8,
+  },
+  retryButton: {
+    marginTop: 16,
+    padding: 8,
+    backgroundColor: '#333',
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  imageActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#333',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: '#fff',
+    marginLeft: 8,
+    fontSize: 16,
+  },
+  fullScreenContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 1,
+    padding: 8,
   },
 }); 

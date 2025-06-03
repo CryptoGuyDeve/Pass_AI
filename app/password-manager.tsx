@@ -131,6 +131,10 @@ export default function PasswordManager() {
           return item.content ? item.content.substring(0, 50) + (item.content.length > 50 ? '...' : '') : 'Note';
         case 'wifi':
           return item.networkName || 'WiFi Network';
+        case 'image':
+          return item.description || 'Image';
+        case 'link':
+          return item.links?.[0]?.name || 'Link';
         default:
           return '';
       }
@@ -165,6 +169,10 @@ export default function PasswordManager() {
         return 'document-text';
       case 'wifi':
         return 'wifi';
+      case 'link':
+        return 'link';
+      case 'image':
+        return 'image';
       default:
         return 'lock-closed';
     }
@@ -185,6 +193,12 @@ export default function PasswordManager() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>PassAI</Text>
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={() => router.push('/settings')}
+          >
+            <Ionicons name="settings-outline" size={24} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         {renderSearchBar()}
@@ -242,6 +256,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  settingsButton: {
+    padding: 8,
   },
   searchContainer: {
     padding: 16,

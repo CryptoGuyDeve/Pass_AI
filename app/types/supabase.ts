@@ -13,7 +13,7 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          type: 'password' | 'creditCard' | 'note' | 'wifi'
+          type: 'password' | 'creditCard' | 'note' | 'wifi' | 'link' | 'image'
           title: string
           category: 'social' | 'work' | 'personal' | 'financial' | 'other'
           data: Json
@@ -25,7 +25,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          type: 'password' | 'creditCard' | 'note' | 'wifi'
+          type: 'password' | 'creditCard' | 'note' | 'wifi' | 'link' | 'image'
           title: string
           category: 'social' | 'work' | 'personal' | 'financial' | 'other'
           data: Json
@@ -37,7 +37,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          type?: 'password' | 'creditCard' | 'note' | 'wifi'
+          type?: 'password' | 'creditCard' | 'note' | 'wifi' | 'link' | 'image'
           title?: string
           category?: 'social' | 'work' | 'personal' | 'financial' | 'other'
           data?: Json

@@ -1,79 +1,48 @@
-import { Stack, router } from 'expo-router';
-import { useEffect } from 'react';
+import { Stack } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { storage } from './utils/storage';
 
 function RootLayout() {
   const { session } = useAuth();
+  const [hasAppPassword, setHasAppPassword] = useState<boolean | null>(null);
+  const [faceLockEnabled, setFaceLockEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Check if user is logged in
-        if (session) {
-          router.replace('/password-manager');
-          return;
-        }
+    checkSecuritySettings();
+  }, []);
 
-        // If not logged in, check if onboarding is complete
-        const isOnboardingComplete = await storage.isOnboardingComplete();
-        if (!isOnboardingComplete) {
-          router.replace('/onboarding');
-        } else {
-          router.replace('/sign-in');
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        router.replace('/sign-in');
-      }
-    };
+  const checkSecuritySettings = async () => {
+    try {
+      const storedPassword = await SecureStore.getItemAsync('appPassword');
+      setHasAppPassword(!!storedPassword);
+      const faceLock = await SecureStore.getItemAsync('faceLockEnabled');
+      setFaceLockEnabled(faceLock === 'true');
+    } catch (error) {
+      console.error('Error checking security settings:', error);
+      setHasAppPassword(false);
+      setFaceLockEnabled(false);
+    }
+  };
 
-    checkAuth();
-  }, [session]);
+  if (hasAppPassword === null || faceLockEnabled === null) {
+    return null; // Loading state
+  }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: '#000' },
-      }}
-    >
-      <Stack.Screen
-        name="onboarding"
-        options={{
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen
-        name="sign-in"
-        options={{
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen
-        name="password-manager"
-        options={{
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen
-        name="add-credential"
-        options={{
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen
-        name="settings"
-        options={{
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen
-        name="credential-details"
-        options={{
-          gestureEnabled: false,
-        }}
-      />
+    <Stack screenOptions={{ headerShown: false }}>
+      {!session ? (
+        <Stack.Screen name="sign-in" />
+      ) : faceLockEnabled ? (
+        <Stack.Screen name="face-lock" />
+      ) : hasAppPassword ? (
+        <Stack.Screen name="app-password" />
+      ) : (
+        <Stack.Screen name="password-manager" />
+      )}
+      <Stack.Screen name="add-credential" />
+      <Stack.Screen name="credential-details" />
+      <Stack.Screen name="settings" />
     </Stack>
   );
 }

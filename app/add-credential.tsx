@@ -2,11 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import AddImageCredential from './components/AddImageCredential';
+import LinkForm from './components/LinkForm';
 import { useAuth } from './contexts/AuthContext';
 import { Credential } from './utils/credentialTypes';
 import { storage } from './utils/storage';
 
-type CredentialType = 'password' | 'creditCard' | 'note' | 'wifi';
+type CredentialType = 'password' | 'creditCard' | 'note' | 'wifi' | 'link' | 'image';
 
 interface CredentialForm {
   type: CredentialType;
@@ -23,12 +25,14 @@ interface CredentialForm {
   ssid?: string;
   networkPassword?: string;
   category?: string;
+  links: { name: string; url: string }[];
 }
 
 export default function AddCredential() {
   const [form, setForm] = useState<CredentialForm>({
     type: 'password',
     title: '',
+    links: [],
   });
   const { session } = useAuth();
 
@@ -74,6 +78,9 @@ export default function AddCredential() {
           password: form.networkPassword || '',
           securityType: 'WPA2', // You might want to make this configurable
         }),
+        ...(form.type === 'link' && {
+          links: form.links,
+        }),
       };
       console.log('Saving credential:', credential); // Debug log
       await storage.addCredential(credential);
@@ -88,7 +95,7 @@ export default function AddCredential() {
     <View style={styles.typeSelector}>
       <Text style={styles.label}>Type</Text>
       <View style={styles.typeButtons}>
-        {(['password', 'creditCard', 'note', 'wifi'] as CredentialType[]).map((type) => (
+        {(['password', 'creditCard', 'note', 'wifi', 'link', 'image'] as CredentialType[]).map((type) => (
           <TouchableOpacity
             key={type}
             style={[styles.typeButton, form.type === type && styles.typeButtonActive]}
@@ -118,6 +125,10 @@ export default function AddCredential() {
         return 'document-text';
       case 'wifi':
         return 'wifi';
+      case 'link':
+        return 'link';
+      case 'image':
+        return 'image';
       default:
         return 'lock-closed';
     }
@@ -268,6 +279,16 @@ export default function AddCredential() {
     </>
   );
 
+  const renderLinkForm = () => {
+    if (form.type !== 'link') return null;
+    return (
+      <View style={styles.formSection}>
+        <Text style={styles.sectionTitle}>Links</Text>
+        <LinkForm onLinksChange={(links) => setForm({ ...form, links })} />
+      </View>
+    );
+  };
+
   const renderFields = () => {
     switch (form.type) {
       case 'password':
@@ -278,6 +299,10 @@ export default function AddCredential() {
         return renderNoteFields();
       case 'wifi':
         return renderWifiFields();
+      case 'link':
+        return renderLinkForm();
+      case 'image':
+        return <AddImageCredential />;
       default:
         return null;
     }
@@ -303,7 +328,6 @@ export default function AddCredential() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {renderTypeSelector()}
             <View style={styles.field}>
               <Text style={styles.label}>Title</Text>
               <TextInput
@@ -314,6 +338,7 @@ export default function AddCredential() {
                 placeholderTextColor="#666"
               />
             </View>
+            {renderTypeSelector()}
             {renderFields()}
             <View style={styles.spacer} />
           </ScrollView>
@@ -488,5 +513,25 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 20, // Add some space at the bottom of the scroll content
+  },
+  formSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    color: '#999',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  submitButton: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  submitButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

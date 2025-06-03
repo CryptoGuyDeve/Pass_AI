@@ -37,9 +37,23 @@ export interface WiFiCredential extends BaseCredential {
   securityType: string;
 }
 
+export interface LinkCredential extends BaseCredential {
+  type: 'link';
+  links: {
+    name: string;
+    url: string;
+  }[];
+}
+
+export interface ImageCredential extends BaseCredential {
+  type: 'image';
+  imageUrl: string;
+  description?: string;
+}
+
 export type CredentialCategory = 'social' | 'work' | 'personal' | 'financial' | 'other';
 
-export type Credential = PasswordCredential | CreditCardCredential | NoteCredential | WiFiCredential;
+export type Credential = PasswordCredential | CreditCardCredential | NoteCredential | WiFiCredential | LinkCredential | ImageCredential;
 
 export const generatePassword = (length: number = 12): string => {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+';
